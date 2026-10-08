@@ -687,8 +687,7 @@ public class CameraController {
         }
         synchronized (mSerializationLock) {
             boolean disableVideoEncodeFlag =
-                    SystemProperties.getBoolean("ro.usb.uvc.disable_video_encode_flag", false) ||
-                    !mContext.getResources().getBoolean(R.bool.config_HardwareVideoEncode);
+                    SystemProperties.getBoolean("ro.usb.uvc.disable_video_encode_flag", false);
             long usage = HardwareBuffer.USAGE_CPU_READ_OFTEN;
             if (!disableVideoEncodeFlag) {
                 usage |= HardwareBuffer.USAGE_VIDEO_ENCODE;
@@ -984,28 +983,30 @@ public class CameraController {
             Consumer<Size> previewSizeChangeListener) {
         // Started on a background thread since we don't want to be blocking either the activity's
         // or the service's main thread (we call blocking camera open in these methods internally)
-        mServiceEventsExecutor.execute(new Runnable() {
-            @Override
-            public void run() {
-                synchronized (mSerializationLock) {
-                    mPreviewSurfaceTexture = surfaceTexture;
-                    mPreviewSize = previewSize;
-                    mPreviewSizeChangeListener = previewSizeChangeListener;
-                    switch (mCurrentState) {
-                        case NO_STREAMING:
-                            setupPreviewOnlyStreamLocked(surfaceTexture);
-                            break;
-                        case WEBCAM_STREAMING:
-                            setupPreviewStreamAlongsideWebcamStreamLocked(surfaceTexture);
-                            break;
-                        case PREVIEW_STREAMING:
-                        case PREVIEW_AND_WEBCAM_STREAMING:
-                            Log.e(TAG, "Incorrect current state for startPreviewStreaming " +
-                                    mCurrentState);
+        mServiceEventsExecutor.execute(
+                () -> {
+                    synchronized (mSerializationLock) {
+                        mPreviewSurfaceTexture = surfaceTexture;
+                        mPreviewSize = previewSize;
+                        mPreviewSizeChangeListener = previewSizeChangeListener;
+                        mPreviewSurfaceTexture.setDefaultBufferSize(
+                                previewSize.getWidth(), previewSize.getHeight());
+                        switch (mCurrentState) {
+                            case NO_STREAMING:
+                                setupPreviewOnlyStreamLocked(surfaceTexture);
+                                break;
+                            case WEBCAM_STREAMING:
+                                setupPreviewStreamAlongsideWebcamStreamLocked(surfaceTexture);
+                                break;
+                            case PREVIEW_STREAMING:
+                            case PREVIEW_AND_WEBCAM_STREAMING:
+                                Log.e(
+                                        TAG,
+                                        "Incorrect current state for startPreviewStreaming "
+                                                + mCurrentState);
+                        }
                     }
-                }
-            }
-        });
+                });
     }
 
     private void setupWebcamOnlyStreamAndOpenCameraLocked() {
